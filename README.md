@@ -1,0 +1,159 @@
+# OverpassAI
+
+Query OpenStreetMap by stacking blocks, or by writing Overpass QL. Both views
+edit the same query, so you can start with blocks and finish by hand.
+
+The whole thing runs in the browser. No backend, no build-time data, no API
+key for anything in the default path.
+
+---
+
+## Why
+
+[overpass-turbo](https://overpass-turbo.eu/) is complete and dependable, and it
+assumes you already know Overpass QL. That is a real barrier: the syntax is
+unusual, the tag vocabulary is unwritten, and the first query most people want
+takes a trip to the wiki.
+
+This keeps what works about it and adds the missing half:
+
+- **A block editor that is not a toy.** Blocks render the parsed query tree
+  directly, so anything you can express in Overpass QL survives a round trip.
+- **Real two-way sync.** A full OverpassQL parser turns text into blocks, and a
+  printer turns blocks back into text. Paste an existing overpass-turbo query
+  and it becomes blocks.
+- **Tag autocompletion from taginfo**, with live usage counts, in both views.
+- **A save format you can reopen**, holding the results *and* the query that
+  produced them.
+
+## Getting started
+
+```sh
+npm install
+npm run dev          # http://127.0.0.1:5173
+```
+
+Use `127.0.0.1`, not `localhost`. They are different origins to OpenStreetMap,
+and only the former is registered as an OAuth redirect.
+
+```sh
+npm run check        # types, lint, unit tests
+npm run smoke        # drives a real browser against the dev server
+npm run build        # static site in dist/
+```
+
+## How it fits together
+
+```
+      text  ──parse──▶  AST  ──print──▶  text
+                         │
+              blocks ◀───┴───▶ blocks        (blocks render the AST directly)
+                         │
+                     compile                 ({{bbox}} and {{geocodeArea:…}}
+                         │                    resolved against the map and
+                         ▼                    Nominatim)
+                   Overpass API
+                         │
+                         ▼
+            GeoJSON ──▶ map, table, exports
+```
+
+| Area | What lives there |
+| --- | --- |
+| `src/core` | The query language: `ast.ts`, `parser.ts`, `printer.ts`, `compile.ts`, `mutate.ts` |
+| `src/services` | Overpass, Nominatim, taginfo, OSM sign-in, OSM JSON to GeoJSON |
+| `src/features` | Permalinks, the local library, presets, exporters |
+| `src/components` | Blocks, text editor, map, results, toolbar |
+| `src/store` | Query, results and interface state |
+
+Two design decisions carry most of the weight:
+
+**The AST is the single source of truth.** Blocks are not a separate model that
+has to be kept in step with the text; they are a rendering of the tree. The
+text view is `print(ast)` and a text edit is `parse(source)`.
+
+**The parser never drops anything.** Every statement and filter is attempted
+with backtracking, and whatever cannot be modelled is preserved verbatim in a
+`raw` node and shown as an "Advanced" block. That is what makes switching
+between views safe for queries the block editor has no UI for.
+
+## Services and keys
+
+| Service | What for | Key needed |
+| --- | --- | --- |
+| Overpass API | Running queries | No |
+| Nominatim | Turning a place name into an area | No |
+| taginfo | Tag key and value autocompletion | No |
+| Basemaps | Map background | No |
+| OpenStreetMap OAuth | Optional sign-in | A public client id |
+
+Overpass sends `Access-Control-Allow-Origin: *`, so the browser talks to it
+directly. Nominatim caps clients at one request per second, which the client
+enforces with a serial queue and a session cache.
+
+### Basemaps
+
+CARTO's basemaps are deliberately absent: they now stamp "API KEY REQUIRED"
+across keyless tiles. The four on offer are the Esri light and dark grey
+canvases, the standard OSM rendering, and Esri satellite imagery.
+
+The default is a grey canvas rather than full-colour OSM, for the same reason
+the results are drawn in magenta: a basemap here is context, not content. That
+magenta is the one hydrographers use on nautical charts, chosen because it
+stays legible over every other colour a chart carries, which is exactly the
+problem a result layer has over beige buildings, green landuse and blue water.
+
+### Optional OpenStreetMap sign-in
+
+Nothing requires an account. Signing in adds your name, saving queries to your
+OSM preferences, and filing a note from a result. See [`.env.example`](.env.example)
+for how to register an application; copy it to `.env.local` with your client id.
+
+The client is public, uses OAuth 2.0 with PKCE, and has no secret. The
+code-for-token exchange runs in the browser against an endpoint that allows
+CORS, which is what lets the app stay static.
+
+## Sharing and saving
+
+**Permalink** (the share button) puts the *query* in the URL, deflated and
+base64url encoded. Never the results: the link stays short, the recipient gets
+fresh data, and nothing from your session leaves the browser.
+
+**Project file** (`.overpassai.json`) holds the query, the parsed tree, the map
+position and the results. Reopening it restores all of them without touching
+the network, so you can review an old answer and adjust the question that
+produced it. Drop one anywhere on the window to open it.
+
+**Library** keeps queries in `localStorage`. That is this browser only: it does
+not sync, and clearing site data erases it. Export the library to a file for a
+copy that lasts.
+
+## Deploying
+
+The build is a static `dist/`. The included workflow publishes to GitHub Pages
+on every push to `main`.
+
+`vite.config.ts` sets `base` to `/overpassAI/` for builds and `/` for the dev
+server, so the two registered OAuth redirect URIs both resolve from
+`import.meta.env.BASE_URL`. Deploying somewhere that serves from the root, such
+as Netlify or Cloudflare Pages, means building with `BASE_PATH=/`.
+
+To enable sign-in on the deployed site, add a repository variable named
+`VITE_OSM_CLIENT_ID` under *Settings → Secrets and variables → Actions →
+Variables*.
+
+### The MapLibre worker
+
+Worth knowing before it bites you: MapLibre builds its worker URL at run time,
+so no bundler can rewrite it. Left alone, the build emits no worker, the
+basemap keeps drawing because raster tiles are decoded on the main thread, and
+every GeoJSON layer silently renders nothing. A plugin in `vite.config.ts`
+emits the worker as an asset and `src/services/mapWorker.ts` points MapLibre at
+it. `npm run smoke` asserts that features are actually painted, because the
+failure is invisible from the outside.
+
+## Licence
+
+The code is MIT. The data is OpenStreetMap's, under the
+[ODbL](https://opendatacommons.org/licenses/odbl/): attribute it, and share
+derived databases under the same terms. Exports carry the attribution.

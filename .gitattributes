@@ -1,0 +1,8 @@
+# Normalise line endings in the repository, so a Windows checkout does not
+# show every file as modified on a Linux machine and vice versa.
+* text=auto eol=lf
+
+# Binary assets must never be touched.
+*.png binary
+*.jpg binary
+*.ico binary

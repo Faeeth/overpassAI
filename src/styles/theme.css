@@ -1,0 +1,280 @@
+/*
+ * Design tokens.
+ *
+ * The palette is built around one constraint: the panel sits next to a live
+ * basemap. Neutral grey chrome blends into the map and makes the whole window
+ * read as one undifferentiated surface, so the chrome is a deep blue-green ink
+ * instead. The map is the document; the panel is the instrument.
+ *
+ * The single accent is the magenta hydrographers use on nautical charts. They
+ * settled on it because it stays legible over every other colour a chart
+ * carries, which is exactly the problem a result layer has over beige
+ * buildings, green landuse and blue water.
+ */
+
+:root {
+  /* -- Ink: panel surfaces, dark theme ---------------------------------- */
+  --ink-900: #0b1519;
+  --ink-850: #0f1c21;
+  --ink-800: #13242a;
+  --ink-700: #182f37;
+  --ink-600: #1f3c46;
+  --ink-500: #2a5260;
+
+  /* -- Paper: panel surfaces, light theme ------------------------------- */
+  --paper-000: #ffffff;
+  --paper-050: #f4f7f8;
+  --paper-100: #e9eff1;
+  --paper-200: #dbe4e7;
+  --paper-300: #c4d2d7;
+  --paper-400: #9fb3ba;
+
+  /* -- Signal: the one loud colour -------------------------------------- */
+  --signal: #e01b6f;
+  --signal-bright: #ff3d8f;
+  --signal-dim: #a81453;
+
+  /* -- Block roles: a legend, not decoration ---------------------------- */
+  --role-scope: #3d9dd1;
+  --role-select: #35b68b;
+  --role-combine: #8878e8;
+  --role-output: #c9932f;
+
+  /* -- Status ----------------------------------------------------------- */
+  --danger: #e0533f;
+  --warning: #d9922b;
+  --success: #35b68b;
+
+  /* -- Type ------------------------------------------------------------- */
+  --font-ui: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.75rem;
+  --text-base: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+
+  /* -- Space: a 4px grid, because the UI is dense ----------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* -- Geometry: differentiated by role, not one radius everywhere ------ */
+  --radius-control: 3px;
+  --radius-block: 4px;
+  --radius-panel: 0px;
+
+  --duration: 120ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------------- */
+/* Dark: the default, and what the tool is designed in                     */
+/* --------------------------------------------------------------------- */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-app: var(--ink-900);
+  --bg-panel: var(--ink-850);
+  --bg-raised: var(--ink-800);
+  --bg-sunken: #081013;
+  --bg-hover: var(--ink-700);
+  --bg-active: var(--ink-600);
+  --bg-input: #0a161a;
+
+  --border: #1d3841;
+  --border-strong: #2a5260;
+  --border-subtle: #16292f;
+
+  --fg: #e2ecef;
+  --fg-muted: #8ba5ad;
+  --fg-faint: #5d777f;
+  --fg-inverse: #0b1519;
+
+  --accent: var(--signal-bright);
+  --accent-fg: #ffffff;
+  --accent-wash: rgba(255, 61, 143, 0.14);
+
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-float: 0 8px 24px -8px rgba(0, 0, 0, 0.7), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  /* Syntax colours reuse the block role hues, so a tag filter reads the same
+     green in the text view as the block it came from. */
+  --syntax-keyword: #6cc3f0;
+  --syntax-string: #6ddba6;
+  --syntax-number: #e7b25a;
+  --syntax-comment: #55707a;
+  --syntax-operator: #b9a5f5;
+  --syntax-template: var(--signal-bright);
+  --syntax-set: #e7b25a;
+  --syntax-bracket: #7d97a0;
+}
+
+/* --------------------------------------------------------------------- */
+/* Light: a cool paper, deliberately not cream                            */
+/* --------------------------------------------------------------------- */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: var(--paper-100);
+  --bg-panel: var(--paper-050);
+  --bg-raised: var(--paper-000);
+  --bg-sunken: var(--paper-100);
+  --bg-hover: var(--paper-100);
+  --bg-active: var(--paper-200);
+  --bg-input: var(--paper-000);
+
+  --border: var(--paper-300);
+  --border-strong: var(--paper-400);
+  --border-subtle: var(--paper-200);
+
+  --fg: #0d2027;
+  --fg-muted: #4e6a73;
+  --fg-faint: #7d959d;
+  --fg-inverse: #ffffff;
+
+  --accent: var(--signal);
+  --accent-fg: #ffffff;
+  --accent-wash: rgba(224, 27, 111, 0.1);
+
+  --role-scope: #1f7fb5;
+  --role-select: #17906a;
+  --role-combine: #6354c9;
+  --role-output: #a6760f;
+
+  --danger: #c23c28;
+  --warning: #a8700e;
+
+  --shadow-panel: 0 1px 0 rgba(13, 32, 39, 0.05);
+  --shadow-float: 0 10px 28px -10px rgba(13, 32, 39, 0.28), 0 2px 6px -2px rgba(13, 32, 39, 0.12);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  --syntax-keyword: #0b6fa4;
+  --syntax-string: #0f7a52;
+  --syntax-number: #94620a;
+  --syntax-comment: #7d959d;
+  --syntax-operator: #5a49b8;
+  --syntax-template: var(--signal);
+  --syntax-set: #94620a;
+  --syntax-bracket: #5c7880;
+}
+
+/* --------------------------------------------------------------------- */
+/* Reset                                                                  */
+/* --------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Focus is always visible, and always the same shape. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-control);
+}
+
+::selection {
+  background: var(--accent-wash);
+}
+
+/* --------------------------------------------------------------------- */
+/* Scrollbars: thin, and part of the panel rather than the OS             */
+/* --------------------------------------------------------------------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-faint);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

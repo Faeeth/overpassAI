@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Signing in...</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0f1115;
+        color: #e6e8ec;
+      }
+      @media (prefers-color-scheme: light) {
+        body {
+          background: #f6f7f9;
+          color: #1b1f27;
+        }
+      }
+      .card {
+        text-align: center;
+        padding: 2rem;
+        max-width: 22rem;
+      }
+      h1 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        font-size: 0.8125rem;
+        opacity: 0.7;
+        margin: 0;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Signing in to OpenStreetMap</h1>
+      <p id="status">You can close this window.</p>
+    </div>
+
+    <!--
+      Handoff page for the OAuth 2.0 + PKCE popup flow.
+
+      osm-auth listens on a BroadcastChannel named `osm-api-auth-complete` and
+      reads the authorization code out of the URL we post back. No token is
+      handled here: the code-for-token exchange happens in the opener window,
+      against the OSM token endpoint, which allows CORS. This page therefore
+      needs no secret, which is what lets the whole app stay static.
+    -->
+    <script>
+      (function () {
+        var status = document.getElementById('status')
+
+        try {
+          var channel = new BroadcastChannel('osm-api-auth-complete')
+          channel.postMessage(window.location.href)
+          channel.close()
+        } catch (err) {
+          status.textContent =
+            'Could not hand the sign-in back to the app. Please close this window and try again.'
+          return
+        }
+
+        // Give the opener a moment to pick the message up before closing.
+        window.setTimeout(function () {
+          window.close()
+        }, 150)
+      })()
+    </script>
+  </body>
+</html>
