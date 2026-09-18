@@ -13,6 +13,7 @@ import { create } from 'zustand'
 
 import type { OverpassQuery } from '../core/ast'
 import { CompileError, compile, type CompiledQuery } from '../core/compile'
+import { validate, type ValidationIssue } from '../core/validate'
 import type { MapView } from '../features/permalink'
 import { geocodeArea } from '../services/nominatim'
 import { OverpassError, runQuery, type OverpassErrorKind } from '../services/overpass'
@@ -23,13 +24,15 @@ export type RunStatus = 'idle' | 'compiling' | 'running' | 'done' | 'error'
 
 export interface RunError {
   /** Which stage failed, so the UI can point at the right thing. */
-  stage: 'compile' | 'request' | 'convert'
+  stage: 'validate' | 'compile' | 'request' | 'convert'
   message: string
   hint?: string
   /** Query lines the server complained about. */
   lines: number[]
   /** Why the request failed, which decides what the UI offers to do about it. */
   kind?: OverpassErrorKind
+  /** Blocks to fix, when the query was refused before being sent. */
+  issues?: ValidationIssue[]
 }
 
 export interface ResultData {
@@ -71,6 +74,30 @@ export const useResultStore = create<ResultState>((set, get) => ({
 
   run: async (query, options) => {
     get().abort?.abort()
+
+    // Refuse a query that cannot work before it reaches the network. A block
+    // with an empty field prints as something like `node[""]`, and letting the
+    // server answer that with a parse error is both slow and useless: the
+    // error names a line in a query the user never wrote.
+    const checked = validate(query)
+    if (!checked.ok) {
+      set({
+        status: 'error',
+        abort: null,
+        error: {
+          stage: 'validate',
+          message:
+            checked.errors.length === 1
+              ? checked.errors[0].message
+              : `${checked.errors.length} blocks need attention before this can run.`,
+          hint: checked.errors.length === 1 ? checked.errors[0].fix : undefined,
+          lines: [],
+          issues: checked.errors,
+        },
+      })
+      return
+    }
+
     const controller = new AbortController()
     set({ status: 'compiling', error: null, abort: controller })
 

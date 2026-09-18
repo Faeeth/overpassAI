@@ -89,7 +89,9 @@ export function makeStatement(kind: StatementKind): Statement {
     case 'geocodeArea':
       return { kind: 'geocodeArea', id: newId(), query: '', into: 'searchArea' }
     case 'raw':
-      return { kind: 'raw', id: newId(), text: ';' }
+      // A comment is valid Overpass QL, so a block nobody has filled in yet
+      // cannot break the query on its own.
+      return { kind: 'raw', id: newId(), text: '// write Overpass QL here' }
   }
 }
 

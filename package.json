@@ -12,7 +12,8 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "oxlint",
     "smoke": "node scripts/smoke.mjs",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -39,6 +40,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^20.14.5",
     "oxlint": "^1.81.0",
     "playwright": "^1.63.0",
     "typescript": "~6.0.2",

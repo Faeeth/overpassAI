@@ -84,8 +84,18 @@ export function isPersistent(): boolean {
 // Operations
 // ---------------------------------------------------------------------------
 
+/**
+ * Saved queries, most recently touched first.
+ *
+ * Stored order is already newest-first, and is the tie-breaker when two
+ * entries share a timestamp to the millisecond.
+ */
 export function list(): SavedQuery[] {
-  return read().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const queries = read()
+  return queries
+    .map((query, index) => ({ query, index }))
+    .sort((a, b) => b.query.updatedAt.localeCompare(a.query.updatedAt) || a.index - b.index)
+    .map((entry) => entry.query)
 }
 
 export function get(id: string): SavedQuery | undefined {
@@ -114,8 +124,11 @@ export function save(input: {
     labels: input.labels,
   }
 
-  if (existingIndex >= 0) queries[existingIndex] = entry
-  else queries.unshift(entry)
+  // Updating moves the entry to the front rather than leaving it in place.
+  // Sorting by `updatedAt` alone is not enough: two saves in the same
+  // millisecond compare equal, and the list then keeps its old order.
+  if (existingIndex >= 0) queries.splice(existingIndex, 1)
+  queries.unshift(entry)
 
   write(queries)
   return entry

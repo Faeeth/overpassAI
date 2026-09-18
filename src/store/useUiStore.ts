@@ -31,6 +31,8 @@ interface UiState {
   view: MapView
   /** Feature the inspector is showing. */
   selectedFeatureId: string | null
+  /** Block to scroll to and highlight, set when an issue is clicked. */
+  selectedBlockId: string | null
   /** Whether new users see the welcome panel. */
   onboardingDismissed: boolean
 
@@ -44,6 +46,7 @@ interface UiState {
   setResultsOpen: (open: boolean) => void
   setView: (view: MapView) => void
   selectFeature: (id: string | null) => void
+  selectBlock: (id: string | null) => void
   dismissOnboarding: () => void
 }
 
@@ -117,6 +120,7 @@ export const useUiStore = create<UiState>()(
       resultsOpen: true,
       view: DEFAULT_VIEW,
       selectedFeatureId: null,
+      selectedBlockId: null,
       onboardingDismissed: false,
 
       setTheme: (theme) => set({ theme }),
@@ -129,6 +133,7 @@ export const useUiStore = create<UiState>()(
       setResultsOpen: (resultsOpen) => set({ resultsOpen }),
       setView: (view) => set({ view }),
       selectFeature: (selectedFeatureId) => set({ selectedFeatureId }),
+      selectBlock: (selectedBlockId) => set({ selectedBlockId }),
       dismissOnboarding: () => set({ onboardingDismissed: true }),
     }),
     {

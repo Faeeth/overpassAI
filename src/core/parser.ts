@@ -589,7 +589,21 @@ export function parse(src: string): ParseResult {
     return stmt
   }
 
-  function finishForeach(from: string | undefined): Statement {
+  /**
+   * `foreach.input->.output( ... );`
+   *
+   * The input set is a postfix on the keyword here, not a prefix as it is
+   * everywhere else. `prefixed` carries a set written the other way round: it
+   * is not valid Overpass, but people write it, and accepting it means the
+   * printer silently corrects the query rather than leaving it broken.
+   */
+  function finishForeach(prefixed: string | undefined): Statement {
+    let from = prefixed
+    if (sc.peek() === '.') {
+      sc.advance()
+      from = readIdent()
+    }
+
     const into = parseInto()
     expect('(', '"(" after foreach')
     const body = parseStatements(')')

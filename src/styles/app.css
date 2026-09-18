@@ -347,6 +347,94 @@
   font-style: italic;
 }
 
+/* Validation ---------------------------------------------------------- */
+
+/* The left edge already encodes the block's role, so a problem is signalled
+   on the outline instead, leaving the legend readable. */
+.block[data-severity='error'] {
+  border-color: var(--danger);
+}
+
+.block[data-severity='warning'] {
+  border-color: var(--warning);
+}
+
+.block[data-highlighted='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.block__issues {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.block__issue {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.block__issue svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.block__issue--error {
+  color: var(--danger);
+}
+
+.block__issue--warning {
+  color: var(--warning);
+}
+
+.block__issue-fix {
+  color: var(--fg-muted);
+  font-style: normal;
+}
+
+/* The same issues, listed in the results panel. */
+.issues {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.issue {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--danger);
+}
+
+.issue__jump {
+  text-align: left;
+  font-size: var(--text-base);
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.issue__jump:hover {
+  text-decoration-color: var(--accent);
+}
+
+.issue__fix {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
 /* Filter rows inside a find block. */
 .filter {
   display: flex;

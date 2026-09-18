@@ -232,6 +232,8 @@ function ErrorReport() {
   const setTab = useUiStore((state) => state.setResultTab)
   const endpointUrl = useUiStore((state) => state.endpointUrl)
   const setEndpointUrl = useUiStore((state) => state.setEndpointUrl)
+  const setEditorMode = useUiStore((state) => state.setEditorMode)
+  const selectBlock = useUiStore((state) => state.selectBlock)
   const timeout = useQueryStore((state) => state.ast.settings.timeout ?? 25)
   const updateAst = useQueryStore((state) => state.updateAst)
 
@@ -255,18 +257,42 @@ function ErrorReport() {
     window.setTimeout(runCurrentQuery, 0)
   }
 
+  // With a list of issues, repeating the first one as a summary just says the
+  // same thing twice; the list carries the detail and the fix.
+  const listed = error.issues?.length ? error.issues : null
+
   return (
     <div className="results__message results__message--error">
       <h3>{titleFor(error.stage)}</h3>
-      <p>{error.message}</p>
+      {listed ? null : <p>{error.message}</p>}
 
-      {error.hint ? <div className="results__hint">{error.hint}</div> : null}
+      {!listed && error.hint ? <div className="results__hint">{error.hint}</div> : null}
 
       {error.lines.length ? (
         <div className="results__hint">
           The server pointed at line {error.lines.join(', ')} of the sent query. Open the
           &ldquo;Sent query&rdquo; tab to see it with the shortcuts expanded.
         </div>
+      ) : null}
+
+      {listed ? (
+        <ul className="issues">
+          {listed.map((issue, index) => (
+            <li className="issue" key={`${issue.statementId}-${index}`}>
+              <button
+                type="button"
+                className="issue__jump"
+                onClick={() => {
+                  setEditorMode('blocks')
+                  selectBlock(issue.statementId)
+                }}
+              >
+                {issue.message}
+              </button>
+              {issue.fix ? <span className="issue__fix">{issue.fix}</span> : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <div className="row" style={{ marginTop: 'var(--space-3)', flexWrap: 'wrap' }}>
@@ -282,16 +308,20 @@ function ErrorReport() {
           </button>
         ) : null}
 
-        <button type="button" className="btn btn--small" onClick={() => setTab('query')}>
-          Show the sent query
-        </button>
+        {error.stage === 'validate' ? null : (
+          <button type="button" className="btn btn--small" onClick={() => setTab('query')}>
+            Show the sent query
+          </button>
+        )}
       </div>
     </div>
   )
 }
 
-function titleFor(stage: 'compile' | 'request' | 'convert'): string {
+function titleFor(stage: 'validate' | 'compile' | 'request' | 'convert'): string {
   switch (stage) {
+    case 'validate':
+      return 'This query is not ready to run'
     case 'compile':
       return 'The query could not be prepared'
     case 'convert':

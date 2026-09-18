@@ -14,6 +14,7 @@
 import type { BBox, OverpassQuery, Statement } from './ast'
 import { newId } from './factory'
 import { print } from './printer'
+import { withoutComments } from './validate'
 
 export interface GeocodeResult {
   areaId: number
@@ -175,7 +176,7 @@ function hasOutput(statements: Statement[]): boolean {
   let found = false
   forEachStatement(statements, (stmt) => {
     if (stmt.kind === 'out') found = true
-    if (stmt.kind === 'raw' && /\bout\b/.test(stmt.text)) found = true
+    if (stmt.kind === 'raw' && /\bout\b/.test(withoutComments(stmt.text))) found = true
   })
   return found
 }

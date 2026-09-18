@@ -7,7 +7,7 @@
  * lives here too so the two can reference each other without a cycle.
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -23,8 +23,10 @@ import type {
 import { cloneWithNewIds, makeFilter, makeStatement } from '../../core/factory'
 import { definedSets, detach, findStatement, insertAt, locate } from '../../core/mutate'
 import { summarize } from '../../core/printer'
+import { issuesFor, validate, worstSeverity, type ValidationIssue } from '../../core/validate'
 import { search as searchPlaces, type Place } from '../../services/nominatim'
 import { useQueryStore } from '../../store/useQueryStore'
+import { useUiStore } from '../../store/useUiStore'
 import { Combobox } from '../Common/Combobox'
 import { Icon } from '../Common/Icon'
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '../Common/Menu'
@@ -92,6 +94,21 @@ interface StatementBlockProps {
 export function StatementBlock({ statement, parentId, draggable = true }: StatementBlockProps) {
   const meta = metaFor(statement)
   const actions = useStatementActions(statement.id)
+  const issues = useIssues(statement.id)
+  const severity = worstSeverity(issues)
+
+  const selected = useUiStore((state) => state.selectedBlockId) === statement.id
+  const selectBlock = useUiStore((state) => state.selectBlock)
+  const element = useRef<HTMLDivElement>(null)
+
+  // Clicking an issue in the results panel brings the block into view, which
+  // is the whole point of the issue naming a block rather than a line number.
+  useEffect(() => {
+    if (!selected || !element.current) return
+    element.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const timer = window.setTimeout(() => selectBlock(null), 2400)
+    return () => window.clearTimeout(timer)
+  }, [selected, selectBlock])
 
   const sortable = useSortable({
     id: statement.id,
@@ -108,11 +125,16 @@ export function StatementBlock({ statement, parentId, draggable = true }: Statem
 
   return (
     <div
-      ref={draggable ? sortable.setNodeRef : undefined}
+      ref={(node) => {
+        element.current = node
+        if (draggable) sortable.setNodeRef(node)
+      }}
       style={style}
       className={`block block--${meta.role}`}
       data-dragging={sortable.isDragging || undefined}
       data-disabled={statement.disabled || undefined}
+      data-severity={severity ?? undefined}
+      data-highlighted={selected || undefined}
     >
       <div className="block__head">
         {draggable ? (
@@ -193,6 +215,20 @@ export function StatementBlock({ statement, parentId, draggable = true }: Statem
         <div className="block__body" style={{ paddingBottom: 0 }}>
           <p className="block__note">{statement.label}</p>
         </div>
+      ) : null}
+
+      {issues.length && !statement.disabled ? (
+        <ul className="block__issues">
+          {issues.map((issue, index) => (
+            <li key={index} className={`block__issue block__issue--${issue.severity}`}>
+              <Icon name={issue.severity === 'error' ? 'alert' : 'info'} size={12} />
+              <span>
+                {issue.message}
+                {issue.fix ? <em className="block__issue-fix"> {issue.fix}</em> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <BlockBody statement={statement} />
@@ -303,7 +339,9 @@ function QueryBody({ statement }: { statement: Extract<Statement, { kind: 'query
                   key={entry.kind}
                   onClick={() => {
                     actions.update<typeof statement>((stmt) => {
-                      stmt.filters.push(makeFilter(entry.kind as Filter['kind']))
+                      stmt.filters.push(
+                        withSensibleDefaults(makeFilter(entry.kind as Filter['kind']), sets),
+                      )
                     })
                     close()
                   }}
@@ -747,6 +785,35 @@ export function AddBlockButton({ parentId }: { parentId: string | null }) {
 // ---------------------------------------------------------------------------
 // Editing helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Adjusts a brand new filter to the query it is being added to.
+ *
+ * "In area" defaults to a set called searchArea, which is the name the place
+ * block uses. When no such set exists, pointing at it would be an error the
+ * user cannot act on, so it falls back to "the most recent area", which merely
+ * warns.
+ */
+function withSensibleDefaults(filter: Filter, sets: string[]): Filter {
+  if ((filter.kind === 'area' || filter.kind === 'pivot') && filter.set) {
+    if (!sets.includes(filter.set)) {
+      return { ...filter, set: sets.find((name) => /area/i.test(name)) ?? undefined }
+    }
+  }
+  return filter
+}
+
+/**
+ * Validation issues for one block.
+ *
+ * The whole query is validated on every change, which sounds wasteful and is
+ * not: queries are a handful of statements, and the alternative is incremental
+ * invalidation logic that would be wrong in some corner.
+ */
+function useIssues(statementId: string): ValidationIssue[] {
+  const ast = useQueryStore((state) => state.ast)
+  return useMemo(() => issuesFor(validate(ast), statementId), [ast, statementId])
+}
 
 function useSets(): string[] {
   const ast = useQueryStore((state) => state.ast)

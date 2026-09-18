@@ -12,8 +12,43 @@ const BASE = process.env.SMOKE_BASE ?? 'http://127.0.0.1:5173/'
 const problems = []
 const log = (...args) => console.log(...args)
 
+/**
+ * Which Overpass instance to point the app at.
+ *
+ * Public instances block clients that have been busy, so pinning one keeps the
+ * run independent of whichever is refusing today:
+ *
+ *   SMOKE_ENDPOINT=https://overpass.osm.ch/api/interpreter npm run smoke
+ */
+const ENDPOINT = process.env.SMOKE_ENDPOINT
+
+/**
+ * Where to point the map before running the query, as "lat,lon,zoom".
+ *
+ * A regional instance has no data outside its area, so the location has to
+ * follow the endpoint or the run proves nothing:
+ *
+ *   SMOKE_ENDPOINT=https://overpass.osm.ch/api/interpreter SMOKE_VIEW=47.3769,8.5417,14
+ */
+const VIEW = process.env.SMOKE_VIEW
+
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+
+if (ENDPOINT) {
+  // The app reads its endpoint from persisted UI state, so seeding that is
+  // less brittle than clicking through the server menu.
+  await page.addInitScript((endpointUrl) => {
+    try {
+      localStorage.setItem(
+        'overpassai.ui.v1',
+        JSON.stringify({ state: { endpointUrl }, version: 0 }),
+      )
+    } catch {
+      /* storage unavailable; the app falls back to its default */
+    }
+  }, ENDPOINT)
+}
 
 page.on('console', (msg) => {
   if (msg.type() === 'error') problems.push(`console.error: ${msg.text()}`)
@@ -109,6 +144,19 @@ log('7. running the query against the live Overpass API')
 await page.evaluate(() => {
   document.documentElement.dataset.theme = 'dark'
 })
+
+if (VIEW) {
+  const [lat, lon, zoom] = VIEW.split(',').map(Number)
+  log(`   moving the map to ${lat}, ${lon} at zoom ${zoom}`)
+  await page.evaluate(
+    ([latitude, longitude, level]) => {
+      window.__mapForTests?.jumpTo({ center: [longitude, latitude], zoom: level })
+    },
+    [lat, lon, zoom],
+  )
+  await page.waitForTimeout(1500)
+}
+
 await page.getByRole('button', { name: 'Run', exact: true }).click()
 let haveResults = await page
   .locator('.results__count')
@@ -135,6 +183,17 @@ if (!haveResults) {
   log('   SKIPPED: no public Overpass instance answered, so result checks are skipped')
 }
 await page.waitForTimeout(2500)
+
+// A regional instance legitimately returns nothing outside its coverage, so
+// the count decides whether the result assertions mean anything, not merely
+// whether the server answered.
+const found = Number(
+  (await page.locator('.results__count').innerText().catch(() => '0')).replace(/[^0-9]/g, ''),
+)
+if (haveResults && found === 0) {
+  log('   note: the server answered with 0 results, so result checks are skipped')
+  log('   (a regional instance such as overpass.osm.ch has no data outside its area)')
+}
 const summary = await page.locator('.results__summary').innerText().catch(() => '(none)')
 log(`   results: ${summary.replace(/\n/g, ' ')}`)
 await page.screenshot({ path: join(here, 'shot-05-results.png') })
@@ -151,7 +210,7 @@ const painted = await page.evaluate(() => {
     .length
 })
 log(`   features painted on the map: ${painted}`)
-if (haveResults && painted === 0) {
+if (found > 0 && painted === 0) {
   problems.push('results are in the table but nothing is drawn on the map')
 }
 if (painted < 0) problems.push(`could not inspect the map (code ${painted})`)
@@ -163,7 +222,7 @@ if (await firstRow.count()) {
   await page.waitForTimeout(600)
   const inspector = await page.locator('.inspector').count()
   log(`   inspector: ${inspector}`)
-  if (haveResults && !inspector) {
+  if (found > 0 && !inspector) {
     problems.push('clicking a result row did not open the inspector')
   }
   await page.screenshot({ path: join(here, 'shot-06-inspector.png') })
@@ -186,6 +245,58 @@ const formats = await page.locator('.option').count()
 log(`   export formats: ${formats}`)
 await page.screenshot({ path: join(here, 'shot-08-export.png') })
 await page.keyboard.press('Escape')
+
+log('10b. an incomplete block is caught before anything is sent')
+{
+  // The reported crash: add a filter, leave it blank, press Run, and get a
+  // parse error from a server in Germany about a query you never wrote.
+  let overpassCalls = 0
+  const countCalls = (request) => {
+    if (/\/api\/interpreter/.test(request.url())) overpassCalls += 1
+  }
+  page.on('request', countCalls)
+
+  await page.getByRole('tab', { name: /Blocks/ }).click()
+  await page.waitForTimeout(300)
+
+  await page.getByRole('button', { name: 'Add a filter' }).first().click()
+  await page.waitForTimeout(250)
+  await page.getByRole('menuitem', { name: 'By id' }).click()
+  await page.waitForTimeout(400)
+
+  const marked = await page.locator('.block[data-severity="error"]').count()
+  const blockIssue = await page.locator('.block__issue--error').first().innerText().catch(() => '')
+  log(`   blocks marked as broken: ${marked}`)
+  log(`   the block says: ${blockIssue.replace(/\n/g, ' ').slice(0, 70)}`)
+  if (marked === 0) problems.push('an empty id filter was not marked on the block')
+
+  await page.getByRole('button', { name: 'Run', exact: true }).click()
+  await page.waitForTimeout(1200)
+
+  const title = await page.locator('.results__message--error h3').innerText().catch(() => '')
+  const listed = await page.locator('.issue').count()
+  log(`   results panel says: ${title}`)
+  log(`   issues listed: ${listed}, requests sent to Overpass: ${overpassCalls}`)
+
+  if (!/not ready to run/i.test(title)) {
+    problems.push('running an incomplete query did not report it as not ready')
+  }
+  if (overpassCalls > 0) {
+    problems.push('an invalid query was sent to the server instead of being refused')
+  }
+
+  await page.screenshot({ path: join(here, 'shot-10-validation.png') })
+  page.off('request', countCalls)
+
+  // Clicking an issue should jump to the block it belongs to.
+  if (listed) {
+    await page.locator('.issue__jump').first().click()
+    await page.waitForTimeout(600)
+    const highlighted = await page.locator('.block[data-highlighted="true"]').count()
+    log(`   clicking the issue highlighted ${highlighted} block(s)`)
+    if (!highlighted) problems.push('clicking an issue did not highlight its block')
+  }
+}
 
 log('11. the permalink')
 const hash = await page.evaluate(() => window.location.hash)
@@ -308,7 +419,7 @@ if (!download) {
   if (!restored.some((s) => s.includes('amenity'))) {
     problems.push('reopening a project did not restore the query blocks')
   }
-  if (haveResults && restoredCount === '0') {
+  if (found > 0 && restoredCount === '0') {
     problems.push('reopening a project did not restore the saved results')
   }
 

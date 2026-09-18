@@ -121,8 +121,13 @@ function statementLines(stmt: Statement, depth: number, indent: number): string[
     case 'geocodeArea':
       return [`${pad}{{geocodeArea:${stmt.query}}}${into(stmt.into)};`]
 
-    case 'recurse':
-      return [`${pad}${from(stmt.from)}${stmt.op}${into(stmt.into)};`]
+    case 'recurse': {
+      // A space before `->` so the operator cannot run into the arrow:
+      // the documented form is `.a > ->.b;`, and `>->` leans on the lexer
+      // splitting a token sequence it has no reason to.
+      const target = stmt.into ? ` ${into(stmt.into)}` : ''
+      return [`${pad}${from(stmt.from)}${stmt.op}${target};`]
+    }
 
     case 'out': {
       const parts = ['out']
@@ -166,8 +171,12 @@ function statementLines(stmt: Statement, depth: number, indent: number): string[
     }
 
     case 'foreach': {
+      // foreach takes its input set as a postfix on the keyword, unlike every
+      // other statement, which takes it as a prefix: `foreach.w->.x(...)`, not
+      // `.w foreach(...)`. The prefix form is a parse error on the server.
       const inner = stmt.body.flatMap((s) => printStatement(s, depth + 1, indent))
-      const head = `${pad}${from(stmt.from)}foreach${into(stmt.into)}(`
+      const input = stmt.from ? `.${stmt.from}` : ''
+      const head = `${pad}foreach${input}${into(stmt.into)}(`
       if (!inner.length) return [`${head});`]
       return [head, ...inner, `${pad});`]
     }

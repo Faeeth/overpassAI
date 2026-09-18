@@ -39,8 +39,68 @@ and only the former is registered as an OAuth redirect.
 ```sh
 npm run check        # types, lint, unit tests
 npm run smoke        # drives a real browser against the dev server
+npm run test:live    # checks our output against a real Overpass server
 npm run build        # static site in dist/
 ```
+
+## Testing
+
+Four layers, because they catch different things.
+
+| Layer | Command | What it covers |
+| --- | --- | --- |
+| Unit and integration | `npm test` | The language, the services, the stores. Offline and deterministic: the Overpass server is a `fetch` stub in `src/services/__tests__/mockOverpass.ts` |
+| Browser | `npm run smoke` | The real app in Chromium: block and text views staying in step, drag and drop, the map actually painting, export and reopen |
+| Syntax oracle | `npm run test:live` | Every corpus query compiled and sent to a real Overpass instance |
+| Types and lint | `npm run typecheck`, `npm run lint` | |
+
+`src/core/__tests__/corpus.ts` holds a corpus of real queries that three
+different checks run against: parse/print/reparse stability, compilation to
+valid Overpass QL, and the live oracle. **When a query is reported as broken,
+add it to the corpus.** That is what turns a bug report into a regression test.
+
+### Why the mock is a stub and not a container
+
+The point of these tests is the *shapes* Overpass answers with, and those are
+fixed strings: an HTML parse-error page returned with HTTP 200, a JSON body
+carrying a `remark`, a 429, a dispatcher timeout. Running the real server would
+make the suite slow, non-deterministic and dependent on someone else's uptime,
+while testing nothing extra.
+
+### Why the live oracle exists anyway
+
+A hand-written parser is a stand-in for the grammar, and a stand-in can be
+wrong in the same direction twice. If the printer emits something invalid and
+the parser reads it back happily, every round-trip test passes and the server
+still rejects the query. That is not hypothetical: it is exactly how `foreach`
+was broken here. The input set belongs *after* the keyword, as
+`foreach.w(...)`, and both halves agreed on `.w foreach(...)` until a real
+server was asked.
+
+The oracle is not part of `npm test`: it needs the network and it is
+deliberately slow. Do not lower its request interval — running the corpus at
+2.5 second spacing was enough to get blocked by overpass-api.de for over ten
+minutes. If the main instance refuses you:
+
+```sh
+OVERPASS_ENDPOINT=https://overpass.osm.ch/api/interpreter npm run test:live
+```
+
+### Pointing the browser test somewhere else
+
+`npm run smoke` drives the dev server at `127.0.0.1:5173` by default. Three
+variables move it:
+
+```sh
+SMOKE_BASE=http://127.0.0.1:4173/overpassAI/ \
+SMOKE_ENDPOINT=https://overpass.osm.ch/api/interpreter \
+SMOKE_VIEW=47.3769,8.5417,15 \
+npm run smoke
+```
+
+`SMOKE_VIEW` has to follow `SMOKE_ENDPOINT`: a regional instance has no data
+outside its own area, and a query that legitimately returns nothing proves
+nothing. The script says so rather than passing quietly.
 
 ## How it fits together
 
@@ -76,6 +136,14 @@ text view is `print(ast)` and a text edit is `parse(source)`.
 with backtracking, and whatever cannot be modelled is preserved verbatim in a
 `raw` node and shown as an "Advanced" block. That is what makes switching
 between views safe for queries the block editor has no UI for.
+
+That permissiveness leaves a gap, which `src/core/validate.ts` closes. A
+freshly added filter has empty fields and prints as `node[""]` or `node(id:)`,
+and without a check the first thing you would hear about it is a parse error
+from a server in Germany, about a line in a query you never wrote. So the tree
+is validated before every send and continuously against the blocks: errors
+name the block and refuse the run, warnings (an unbounded query, an empty tag
+value) explain themselves and let it through.
 
 ## Services and keys
 
