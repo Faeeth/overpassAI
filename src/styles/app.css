@@ -29,6 +29,36 @@
 }
 
 /* ===================================================================== */
+/* Skip links                                                             */
+/* ===================================================================== */
+
+/*
+ * Off-screen until focused, then a real control at the top left. Keyboard
+ * users otherwise tab through the entire query panel to reach the results.
+ */
+.skip-links a {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 300;
+  transform: translateY(-200%);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 500;
+  transition: transform var(--duration) var(--ease);
+}
+
+ /* :focus, not :focus-visible. A skip link should appear for any focus,
+    including one moved programmatically. */
+.skip-links a:focus {
+  transform: none;
+}
+
+/* ===================================================================== */
 /* Top bar                                                                */
 /* ===================================================================== */
 
@@ -264,8 +294,10 @@
 
 .block__grip {
   flex: none;
-  width: 14px;
-  height: 18px;
+  /* The visible glyph stays small; the hit area is a full target. */
+  width: 24px;
+  height: 24px;
+  margin-left: calc(var(--space-1) * -1);
   color: var(--fg-faint);
   cursor: grab;
   display: grid;
@@ -584,6 +616,14 @@
 .checkbox input {
   accent-color: var(--accent);
   margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* Keeps the whole label a 24px target rather than just the box. */
+.checkbox {
+  min-height: 24px;
+  padding: var(--space-1) 0;
 }
 
 /* Buttons ------------------------------------------------------------- */
@@ -619,8 +659,8 @@
 }
 
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-surface);
+  border-color: var(--accent-surface);
   color: var(--accent-fg);
   padding: var(--space-1) var(--space-4);
   font-weight: 600;
@@ -656,7 +696,8 @@
 }
 
 .btn--small {
-  height: 22px;
+  /* 24px is the WCAG 2.2 minimum target size. It was 22. */
+  height: 24px;
   padding: 0 var(--space-2);
   font-size: var(--text-sm);
 }
@@ -826,9 +867,14 @@
   color: var(--fg-faint);
 }
 
+/*
+ * A very light tint. The previous `--bg-hover` moved the background far enough
+ * to drag the gutter numbers and bracket colour below 4.5:1, which is a poor
+ * trade for marking a line the caret already marks.
+ */
 .editor__surface .cm-activeLineGutter,
 .editor__surface .cm-activeLine {
-  background: var(--bg-hover);
+  background: var(--editor-active-line);
 }
 
 .editor__surface .cm-content {
@@ -1654,6 +1700,35 @@ dialog.dialog-native::backdrop {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--fg-muted);
+}
+
+/* ===================================================================== */
+/* Third-party controls                                                   */
+/* ===================================================================== */
+
+/*
+ * MapLibre ships its own chrome. The scale reads at 1.46:1 against the map and
+ * the geolocate button is under the minimum target size, so both are brought
+ * up to the rest of the interface rather than left as the library set them.
+ */
+.maplibregl-ctrl-scale {
+  color: var(--fg);
+  background: var(--bg-panel);
+  border-color: var(--border-strong);
+  font-family: var(--font-mono);
+}
+
+.maplibregl-ctrl-group button,
+.maplibregl-ctrl button.maplibregl-ctrl-geolocate,
+.maplibregl-ctrl button.maplibregl-ctrl-zoom-in,
+.maplibregl-ctrl button.maplibregl-ctrl-zoom-out,
+.maplibregl-ctrl button.maplibregl-ctrl-compass {
+  width: 30px;
+  height: 30px;
+}
+
+.maplibregl-ctrl-attrib a {
+  text-decoration: underline;
 }
 
 /* ===================================================================== */

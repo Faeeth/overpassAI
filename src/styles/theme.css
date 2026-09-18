@@ -37,11 +37,11 @@
   /* -- Block roles: a legend, not decoration ---------------------------- */
   --role-scope: #3d9dd1;
   --role-select: #35b68b;
-  --role-combine: #8878e8;
+  --role-combine: #8979e8;
   --role-output: #c9932f;
 
   /* -- Status ----------------------------------------------------------- */
-  --danger: #e0533f;
+  --danger: #e25f4c;
   --warning: #d9922b;
   --success: #35b68b;
 
@@ -97,10 +97,15 @@
 
   --fg: #e2ecef;
   --fg-muted: #8ba5ad;
-  --fg-faint: #5d777f;
+  /* 4.57:1 on the raised surface. The old #5d777f read 3.36 and carried the
+     block notes, the editor gutter and every usage count. */
+  --fg-faint: #778d93;
   --fg-inverse: #0b1519;
 
   --accent: var(--signal-bright);
+  /* The accent is tuned to be seen over a map, which leaves white text on it
+     at 3.32:1. Filled controls use a darker surface so their label passes. */
+  --accent-surface: #d81b7a;
   --accent-fg: #ffffff;
   --accent-wash: rgba(255, 61, 143, 0.14);
 
@@ -113,11 +118,13 @@
   --syntax-keyword: #6cc3f0;
   --syntax-string: #6ddba6;
   --syntax-number: #e7b25a;
-  --syntax-comment: #55707a;
+  /* 4.57:1 on the editor background; comments are still text. */
+  --syntax-comment: #6b838b;
   --syntax-operator: #b9a5f5;
   --syntax-template: var(--signal-bright);
   --syntax-set: #e7b25a;
   --syntax-bracket: #7d97a0;
+  --editor-active-line: #132228;
 }
 
 /* --------------------------------------------------------------------- */
@@ -141,20 +148,24 @@
 
   --fg: #0d2027;
   --fg-muted: #4e6a73;
-  --fg-faint: #7d959d;
+  /* 4.58:1 on white. */
+  --fg-faint: #5f7277;
   --fg-inverse: #ffffff;
 
   --accent: var(--signal);
+  --accent-surface: var(--signal);
   --accent-fg: #ffffff;
   --accent-wash: rgba(224, 27, 111, 0.1);
 
-  --role-scope: #1f7fb5;
-  --role-select: #17906a;
+  /* Nudged so the block labels clear 4.5:1 as 12px text. The 3px block edge
+     keeps the same hue and only needs 3:1 as a graphical object. */
+  --role-scope: #1e7cb1;
+  --role-select: #158663;
   --role-combine: #6354c9;
-  --role-output: #a6760f;
+  --role-output: #9a6e0e;
 
   --danger: #c23c28;
-  --warning: #a8700e;
+  --warning: #a16c0d;
 
   --shadow-panel: 0 1px 0 rgba(13, 32, 39, 0.05);
   --shadow-float: 0 10px 28px -10px rgba(13, 32, 39, 0.28), 0 2px 6px -2px rgba(13, 32, 39, 0.12);
@@ -163,11 +174,12 @@
   --syntax-keyword: #0b6fa4;
   --syntax-string: #0f7a52;
   --syntax-number: #94620a;
-  --syntax-comment: #7d959d;
+  --syntax-comment: #5f7277;
   --syntax-operator: #5a49b8;
   --syntax-template: var(--signal);
   --syntax-set: #94620a;
-  --syntax-bracket: #5c7880;
+  --syntax-bracket: #58737b;
+  --editor-active-line: #f2f5f6;
 }
 
 /* --------------------------------------------------------------------- */
@@ -221,10 +233,20 @@ button {
   padding: 0;
 }
 
+/*
+ * Links are underlined, not merely coloured. Colour alone fails WCAG 1.4.1 for
+ * anyone who cannot distinguish the hue from the surrounding text.
+ */
 a {
   color: var(--accent);
+  text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+}
+
+/* Except where the link is styled as a button, which reads as one already. */
+a.btn {
+  text-decoration: none;
 }
 
 /* Focus is always visible, and always the same shape. */

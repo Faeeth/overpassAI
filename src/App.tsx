@@ -34,13 +34,23 @@ export default function App() {
 
   return (
     <div className="shell" style={{ ['--panel-width' as string]: `${panelWidth}px` }}>
+      {/*
+        WCAG 2.4.1. Without these it takes forty tab stops to get past the
+        query panel, which is most of the interface, to reach the results.
+      */}
+      <nav className="skip-links" aria-label="Skip links">
+        <a href="#query-panel">Skip to the query</a>
+        <a href="#map-region">Skip to the map</a>
+        <a href="#results-region">Skip to the results</a>
+      </nav>
+
       <TopBar />
 
-      <div className="shell__body">
+      <main className="shell__body">
         <LeftPanel open={panelOpen} />
         <PanelResizer />
 
-        <div className="shell__map">
+        <div className="shell__map" id="map-region" role="region" aria-label="Map" tabIndex={-1}>
           <MapView />
           <Inspector />
 
@@ -55,7 +65,7 @@ export default function App() {
             <Icon name="blocks" />
           </button>
         </div>
-      </div>
+      </main>
 
       <ResultsPanel />
       <ToastHost />
@@ -205,6 +215,9 @@ function PanelResizer() {
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize the query panel"
+      aria-valuenow={Math.round(panelWidth)}
+      aria-valuemin={320}
+      aria-valuemax={900}
       tabIndex={0}
       onKeyDown={(event) => {
         if (event.key === 'ArrowLeft') setPanelWidth(panelWidth - 16)

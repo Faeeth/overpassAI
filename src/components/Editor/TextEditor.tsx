@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { searchKeymap } from '@codemirror/search'
 import { EditorState } from '@codemirror/state'
@@ -94,13 +94,28 @@ export function TextEditor() {
           overpassTheme,
           overpassCompletion,
           EditorView.lineWrapping,
+          // Without this the editable region is an unnamed ARIA textbox.
+          EditorView.contentAttributes.of({
+            'aria-label': 'Overpass QL query',
+            role: 'textbox',
+          }),
           placeholder('Write Overpass QL here, or build the query with blocks.'),
           keymap.of([
+            // Escape releases focus. CodeMirror's `indentWithTab` is
+            // deliberately absent: it swallows Tab, which turns the editor
+            // into a keyboard trap that nobody can get out of. Indentation is
+            // handled by `indentOnInput` instead.
+            {
+              key: 'Escape',
+              run: (target) => {
+                target.contentDOM.blur()
+                return true
+              },
+            },
             ...closeBracketsKeymap,
             ...defaultKeymap,
             ...historyKeymap,
             ...searchKeymap,
-            indentWithTab,
           ]),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return

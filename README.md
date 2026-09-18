@@ -39,18 +39,23 @@ and only the former is registered as an OAuth redirect.
 ```sh
 npm run check        # types, lint, unit tests
 npm run smoke        # drives a real browser against the dev server
+npm run a11y         # axe-core plus keyboard, target size, reflow and zoom checks
+npm run usability    # task-based runs, counting the friction in each
 npm run test:live    # checks our output against a real Overpass server
 npm run build        # static site in dist/
 ```
 
 ## Testing
 
-Four layers, because they catch different things.
+Seven layers, because they catch different things.
 
 | Layer | Command | What it covers |
 | --- | --- | --- |
 | Unit and integration | `npm test` | The language, the services, the stores. Offline and deterministic: the Overpass server is a `fetch` stub in `src/services/__tests__/mockOverpass.ts` |
 | Browser | `npm run smoke` | The real app in Chromium: block and text views staying in step, drag and drop, the map actually painting, export and reopen |
+| Accessibility | `npm run a11y` | axe-core across seven states in both themes, plus keyboard-only operation, target sizes, reflow at 320px and 200% zoom |
+| Contrast | `npm run contrast` | Every rendered text element measured against its real background, in both themes and inside the editor |
+| Usability | `npm run usability` | Seven task-based runs, each counting the interactions it took against the fewest it could have taken |
 | Syntax oracle | `npm run test:live` | Every corpus query compiled and sent to a real Overpass instance |
 | Types and lint | `npm run typecheck`, `npm run lint` | |
 
@@ -100,6 +105,21 @@ minutes. If the main instance refuses you:
 ```sh
 OVERPASS_ENDPOINT=https://overpass.osm.ch/api/interpreter npm run test:live
 ```
+
+### What the usability runs are for
+
+`npm run usability` is not a set of assertions about markup. It is a simulated
+person trying to get something done, with the cost counted: interactions, time,
+whether it succeeded, and every dead end on the way. Each task declares a
+*floor* — the fewest interactions it could take if the interface were perfect —
+and the gap between the two is where the design is in the way.
+
+It has already earned its keep twice. It found a menu that closed in the same
+frame it opened, because clicking a trigger near the edge of a scrolling panel
+makes the browser scroll it into view and that fired the handler meant to close
+the menu when the page moves. And it found a keyboard trap: `indentWithTab` in
+CodeMirror swallows Tab, so focus went into the text editor and never came out.
+Neither is visible to axe-core, a type checker or a unit test.
 
 ### Pointing the browser test somewhere else
 
@@ -274,3 +294,30 @@ Result conversion handles 50 000 nodes in about 20 ms, and a 2 000-fragment
 multipolygon boundary in about the same. The parser caps statement nesting at
 64 levels: recursive descent recurses once per level, and without a limit a
 pasted `((((((…` overflows the stack and takes the page with it.
+
+## Accessibility
+
+Target: WCAG 2.2 Level AA. `npm run a11y` reports no axe-core violations in any
+of the seven states it checks, in both themes, and `npm run contrast` finds no
+text below 4.5:1 anywhere, including the syntax colours in the editor.
+
+Getting there changed some design decisions rather than just some values:
+
+- **The accent has two forms.** The chart magenta is tuned to be seen over a
+  map, which leaves white text on it at 3.32:1. Filled controls use a darker
+  `--accent-surface`, so the Run button's label passes while the result layer
+  keeps the colour it needs.
+- **The block role colours are text as well as edges.** Three of them were
+  nudged darker in the light theme so the block labels clear 4.5:1. The 3px
+  edge keeps the original hue, since a graphical object only needs 3:1.
+- **The active-line highlight is barely a tint.** The previous one moved the
+  background far enough to drag the gutter numbers under AA, which is a poor
+  trade for marking a line the caret already marks.
+- **Skip links.** Reaching the results meant tabbing past the entire query
+  panel. Three skip links take it to one keystroke.
+- **The result table uses a roving tabindex.** Making every row focusable put
+  250 tab stops between the results and anything after them; now one row is
+  tabbable and the arrow keys move between them.
+- **MapLibre's geolocate control is gone**, replaced by a button in this app's
+  own control group. Its own control landed in the same corner as these and
+  ended up underneath them, leaving 3px of it clickable.

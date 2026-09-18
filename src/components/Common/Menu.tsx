@@ -42,8 +42,7 @@ export function Menu({
     triggerRef.current?.focus()
   }, [])
 
-  useLayoutEffect(() => {
-    if (!open) return
+  const reposition = useCallback(() => {
     const anchor = triggerRef.current?.getBoundingClientRect()
     const menu = menuRef.current?.getBoundingClientRect()
     if (!anchor) return
@@ -59,7 +58,12 @@ export function Menu({
     const top = below + height > window.innerHeight - 8 ? anchor.top - height - gap : below
 
     setPosition({ top: Math.max(8, top), left })
-  }, [open, align])
+  }, [align])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    reposition()
+  }, [open, reposition])
 
   useEffect(() => {
     if (!open) return
@@ -77,22 +81,22 @@ export function Menu({
       }
     }
 
-    // The menu is positioned once, so anything that moves the trigger closes it
-    // rather than leaving the popover stranded.
-    const handleDisplace = () => setOpen(false)
-
+    // Follow the trigger rather than closing. Closing on scroll looks
+    // reasonable until you notice that clicking a trigger near the edge of a
+    // scrolling panel makes the browser scroll it into view, which fired this
+    // and shut the menu in the same frame it opened.
     document.addEventListener('pointerdown', handlePointer, true)
     document.addEventListener('keydown', handleKey, true)
-    window.addEventListener('resize', handleDisplace)
-    window.addEventListener('scroll', handleDisplace, true)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
 
     return () => {
       document.removeEventListener('pointerdown', handlePointer, true)
       document.removeEventListener('keydown', handleKey, true)
-      window.removeEventListener('resize', handleDisplace)
-      window.removeEventListener('scroll', handleDisplace, true)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
     }
-  }, [open, close])
+  }, [open, close, reposition])
 
   return (
     <>

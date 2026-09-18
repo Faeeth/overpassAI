@@ -63,10 +63,10 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="topbar__brand">
+      <h1 className="topbar__brand">
         <BrandMark className="topbar__mark" />
         OverpassAI
-      </div>
+      </h1>
 
       <input
         className="topbar__name"

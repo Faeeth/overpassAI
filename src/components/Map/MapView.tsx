@@ -7,9 +7,8 @@
  * settled on it for chart overlays.
  */
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  GeolocateControl,
   Map as MapLibreMap,
   ScaleControl,
   type FilterSpecification,
@@ -26,6 +25,7 @@ import { useResultStore } from '../../store/useResultStore'
 import { useUiStore } from '../../store/useUiStore'
 import { Icon } from '../Common/Icon'
 import { Menu, MenuItem, MenuLabel } from '../Common/Menu'
+import { toast } from '../Common/Toast'
 import { configureMapWorker } from '../../services/mapWorker'
 import { BASEMAPS, basemapStyle } from './basemaps'
 import { setMapInstance } from './mapRegistry'
@@ -76,11 +76,11 @@ export function MapView() {
       maxZoom: 21,
     })
 
+    // MapLibre's own geolocate control lands in the same corner as this app's
+    // controls and ends up underneath them, leaving 3px of it clickable. The
+    // button below does the one thing anyone wants from it, in the same style
+    // as everything else on the map.
     instance.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-right')
-    instance.addControl(
-      new GeolocateControl({ trackUserLocation: false }),
-      'top-right',
-    )
 
     instance.on('load', () => {
       ready.current = true
@@ -183,6 +183,36 @@ export function MapView() {
 
   // -- Controls -----------------------------------------------------------
 
+  const [locating, setLocating] = useState(false)
+
+  const goToMyLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('This browser does not offer a location.')
+      return
+    }
+
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false)
+        map.current?.easeTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: Math.max(map.current.getZoom(), 14),
+          duration: 600,
+        })
+      },
+      (error) => {
+        setLocating(false)
+        toast.error(
+          error.code === error.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in the address bar to use this.'
+            : 'Could not work out where you are.',
+        )
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    )
+  }, [])
+
   const zoomToResults = useCallback(() => {
     const instance = map.current
     if (!instance || !data) return
@@ -218,6 +248,17 @@ export function MapView() {
         </div>
 
         <div className="map__control-group">
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={goToMyLocation}
+            disabled={locating}
+            aria-label="Go to my location"
+            title="Go to my location"
+          >
+            {locating ? <span className="btn__spinner" /> : <Icon name="pin" />}
+          </button>
+
           <button
             type="button"
             className="btn btn--icon"

@@ -55,7 +55,7 @@ export function Dialog({ open, title, onClose, children, footer, narrow }: Dialo
       }}
     >
       <div className={narrow ? 'dialog dialog--narrow' : 'dialog'}>
-        <header className="dialog__head">
+        <div className="dialog__head">
           <h2 className="dialog__title">{title}</h2>
           <button
             type="button"
@@ -65,11 +65,11 @@ export function Dialog({ open, title, onClose, children, footer, narrow }: Dialo
           >
             <Icon name="close" />
           </button>
-        </header>
+        </div>
 
         <div className="dialog__body">{children}</div>
 
-        {footer ? <footer className="dialog__foot">{footer}</footer> : null}
+        {footer ? <div className="dialog__foot">{footer}</div> : null}
       </div>
     </dialog>
   )

@@ -42,7 +42,14 @@ export function LeftPanel({ open }: { open: boolean }) {
   const blockProblems = validation.errors.length
 
   return (
-    <div className="panel" data-open={open || undefined}>
+    <div
+      className="panel"
+      id="query-panel"
+      data-open={open || undefined}
+      role="region"
+      aria-label="Query"
+      tabIndex={-1}
+    >
       <div className="panel__tabs" role="tablist" aria-label="Query view">
         <button
           type="button"

@@ -67,10 +67,26 @@ export function ResultsPanel() {
     <section
       className={open ? 'results' : 'results results--collapsed'}
       style={open ? { height } : undefined}
+      id="results-region"
       aria-label="Results"
+      tabIndex={-1}
     >
       {open ? (
-        <div className="resizer resizer--horizontal" onPointerDown={startResize} role="presentation" />
+        <div
+          className="resizer resizer--horizontal"
+          onPointerDown={startResize}
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize the results panel"
+          aria-valuenow={Math.round(height)}
+          aria-valuemin={120}
+          aria-valuemax={720}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp') setHeight(height + 16)
+            if (event.key === 'ArrowDown') setHeight(height - 16)
+          }}
+        />
       ) : null}
 
       <div className="results__bar">
@@ -87,11 +103,12 @@ export function ResultsPanel() {
         <Summary />
 
         {open ? (
-          <div className="results__tabs">
+          <div className="results__tabs" role="tablist" aria-label="Result view">
             {TABS.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
+                role="tab"
                 className="tab"
                 aria-selected={tab === entry.id}
                 onClick={() => setTab(entry.id)}
@@ -142,7 +159,7 @@ function Summary() {
 
   if (error) {
     return (
-      <div className="results__summary">
+      <div className="results__summary" role="status" aria-live="polite">
         <span style={{ color: 'var(--danger)' }}>Query failed</span>
       </div>
     )
@@ -159,7 +176,7 @@ function Summary() {
 
   if (!data) {
     return (
-      <div className="results__summary">
+      <div className="results__summary" role="status" aria-live="polite">
         <span className="muted">Results</span>
       </div>
     )
@@ -173,10 +190,17 @@ function Summary() {
   ].filter(Boolean)
 
   return (
-    <div className="results__summary">
+    <div className="results__summary" role="status" aria-live="polite">
       <span className="results__count">{stats.total.toLocaleString()}</span>
       <span>{stats.total === 1 ? 'result' : 'results'}</span>
       {parts.length ? <span className="results__meta">{parts.join(', ')}</span> : null}
+      {/* Where it searched, which is not always where the map is looking:
+          adding a feature reuses the query's existing place. */}
+      {data.geocoded.length ? (
+        <span className="results__meta" title={data.geocoded[0].displayName}>
+          in {shortPlace(data.geocoded[0].displayName)}
+        </span>
+      ) : null}
       <span className="results__meta">in {(durationMs / 1000).toFixed(2)} s</span>
       {stats.withoutGeometry ? (
         <span className="results__meta">
@@ -329,6 +353,11 @@ function titleFor(stage: 'validate' | 'compile' | 'request' | 'convert'): string
     default:
       return 'The server rejected the query'
   }
+}
+
+/** The first couple of parts of a Nominatim display name, which is the bit people recognise. */
+export function shortPlace(displayName: string): string {
+  return displayName.split(',').slice(0, 2).map((p) => p.trim()).join(', ')
 }
 
 /** Pretty-prints a JSON body, leaving anything else untouched. */
