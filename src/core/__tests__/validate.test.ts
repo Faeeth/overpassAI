@@ -219,3 +219,33 @@ describe('issues point at the block they belong to', () => {
     expect(result.errors[0].filterId).toBe(query.filters[0].id)
   })
 })
+
+describe('containers are not mistaken for earlier results', () => {
+  it('rejects "near" in the first block of a union with nothing before it', () => {
+    // A traversal reaches the union before the block inside it. Counting the
+    // union as an earlier result would let this through, and the server would
+    // then answer "query has no valid input set".
+    const result = validate(parseQuery('[out:json];(node(around:500););out;'))
+    expect(result.errors.some((issue) => /nothing to be near/i.test(issue.message))).toBe(true)
+  })
+
+  it('accepts "near" in a union once a real block precedes it', () => {
+    const result = validate(
+      parseQuery('[out:json];node["railway"](50,7,51,8);(node(around:500););out;'),
+    )
+    expect(result.errors).toEqual([])
+  })
+
+  it('accepts "near" in the second block of a union', () => {
+    const result = validate(
+      parseQuery('[out:json];(node["railway"](50,7,51,8);node(around:500););out;'),
+    )
+    expect(result.errors).toEqual([])
+  })
+
+  it('ignores a muted block when deciding what came before', () => {
+    const query = parseQuery('[out:json];node["railway"](50,7,51,8);node(around:500);out;')
+    query.statements[0].disabled = true
+    expect(validate(query).errors.some((i) => /nothing to be near/i.test(i.message))).toBe(true)
+  })
+})

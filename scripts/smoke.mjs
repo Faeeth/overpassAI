@@ -228,6 +228,43 @@ if (await firstRow.count()) {
   await page.screenshot({ path: join(here, 'shot-06-inspector.png') })
 }
 
+log('8b. sorting the result table')
+if (found > 0) {
+  const firstBefore = await page.locator('.table tbody tr td').first().innerText()
+  await page.locator('.table th .table__sort').nth(1).click()
+  await page.waitForTimeout(400)
+  const ascFirst = await page.locator('.table tbody tr').first().innerText()
+  await page.locator('.table th .table__sort').nth(1).click()
+  await page.waitForTimeout(400)
+  const descFirst = await page.locator('.table tbody tr').first().innerText()
+
+  log(`   ascending starts: ${ascFirst.replace(/\s+/g, ' ').slice(0, 40)}`)
+  log(`   descending starts: ${descFirst.replace(/\s+/g, ' ').slice(0, 40)}`)
+  if (ascFirst === descFirst) problems.push('sorting a column changed nothing')
+  void firstBefore
+
+  const sorted = await page.locator('.table th[aria-sort="descending"]').count()
+  if (!sorted) problems.push('the sorted column is not announced to assistive technology')
+}
+
+log('8c. revealing a block in the text')
+await page.getByRole('tab', { name: /Blocks/ }).click()
+await page.waitForTimeout(400)
+await page.locator('.block').nth(1).hover()
+await page.locator('.block').nth(1).getByRole('button', { name: 'Block options' }).click()
+await page.waitForTimeout(300)
+await page.getByRole('menuitem', { name: /Show in the text/ }).click()
+await page.waitForTimeout(800)
+
+const switchedToText = await page.locator('.cm-content').count()
+const selectionLength = await page.evaluate(() => window.getSelection()?.toString().length ?? 0)
+log(`   text view mounted: ${switchedToText}, selected ${selectionLength} characters`)
+if (!switchedToText) problems.push('"show in the text" did not open the text view')
+if (selectionLength === 0) problems.push('"show in the text" did not select the block line')
+await page.screenshot({ path: join(here, 'shot-11-reveal.png') })
+await page.getByRole('tab', { name: /Blocks/ }).click()
+await page.waitForTimeout(300)
+
 log('9. the preset catalogue')
 await page.getByRole('button', { name: /Browse features/ }).click()
 await page.waitForTimeout(500)

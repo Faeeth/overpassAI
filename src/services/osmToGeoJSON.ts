@@ -118,7 +118,15 @@ function isAreaWay(tags: Record<string, string> | undefined, closed: boolean): b
 // ---------------------------------------------------------------------------
 
 export function osmToGeoJSON(response: OverpassResponse): ConversionResult {
-  const elements = response.elements ?? []
+  // The response is whatever came back over the wire. A malformed body, a
+  // proxy rewriting things, or a future server field should degrade to fewer
+  // results, never to a thrown render.
+  const elements = Array.isArray(response?.elements)
+    ? response.elements.filter(
+        (el): el is OsmElement =>
+          !!el && typeof el === 'object' && typeof (el as OsmElement).type === 'string',
+      )
+    : []
 
   const nodes = new Map<number, OsmElement>()
   const ways = new Map<number, OsmElement>()

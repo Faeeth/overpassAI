@@ -9,21 +9,46 @@
  */
 
 import { useMemo, useState } from 'react'
-import type { Feature, FeatureCollection } from 'geojson'
+import type { FeatureCollection } from 'geojson'
 
+import { flyToFeature } from '../Map/mapRegistry'
 import { useUiStore } from '../../store/useUiStore'
+import { Icon } from '../Common/Icon'
+import { labelFor, pickColumns, sortFeatures, valueOf, type Sort } from './tableColumns'
 
 const PAGE = 250
-const MAX_TAG_COLUMNS = 8
 
 export function ResultTable({ collection }: { collection: FeatureCollection }) {
   const [limit, setLimit] = useState(PAGE)
+  const [sort, setSort] = useState<Sort | null>(null)
   const selectedId = useUiStore((state) => state.selectedFeatureId)
   const selectFeature = useUiStore((state) => state.selectFeature)
 
   const columns = useMemo(() => pickColumns(collection.features), [collection])
-  const rows = collection.features.slice(0, limit)
-  const remaining = collection.features.length - rows.length
+
+  const ordered = useMemo(() => {
+    if (!sort) return collection.features
+    return sortFeatures(collection.features, sort)
+  }, [collection, sort])
+
+  const rows = ordered.slice(0, limit)
+  const remaining = ordered.length - rows.length
+
+  const select = (id: string) => {
+    const next = id === selectedId ? null : id
+    selectFeature(next)
+    // Selecting a row is how people find a result on the map, so the map has
+    // to go there rather than highlighting something off-screen.
+    if (next) flyToFeature(ordered.find((f) => f.properties?.['@id'] === next) ?? null)
+  }
+
+  const toggleSort = (column: string) => {
+    setSort((current) => {
+      if (current?.column !== column) return { column, direction: 'asc' }
+      if (current.direction === 'asc') return { column, direction: 'desc' }
+      return null
+    })
+  }
 
   if (!collection.features.length) {
     return (
@@ -37,16 +62,31 @@ export function ResultTable({ collection }: { collection: FeatureCollection }) {
     )
   }
 
+  const header = ['@type', '@osmId', ...columns]
+
   return (
     <>
       <table className="table">
         <thead>
           <tr>
-            <th scope="col">Type</th>
-            <th scope="col">Id</th>
-            {columns.map((column) => (
-              <th key={column} scope="col">
-                {column}
+            {header.map((column) => (
+              <th
+                key={column}
+                scope="col"
+                aria-sort={
+                  sort?.column === column
+                    ? sort.direction === 'asc'
+                      ? 'ascending'
+                      : 'descending'
+                    : 'none'
+                }
+              >
+                <button type="button" className="table__sort" onClick={() => toggleSort(column)}>
+                  {labelFor(column)}
+                  {sort?.column === column ? (
+                    <Icon name={sort.direction === 'asc' ? 'chevron-up' : 'chevron-down'} size={11} />
+                  ) : null}
+                </button>
               </th>
             ))}
           </tr>
@@ -57,13 +97,22 @@ export function ResultTable({ collection }: { collection: FeatureCollection }) {
             return (
               <tr
                 key={id}
+                tabIndex={0}
                 aria-selected={id === selectedId}
-                onClick={() => selectFeature(id === selectedId ? null : id)}
+                onClick={() => select(id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    select(id)
+                  }
+                }}
               >
-                <td className="table__mono">{String(feature.properties?.['@type'] ?? '')}</td>
-                <td className="table__mono">{String(feature.properties?.['@osmId'] ?? '')}</td>
-                {columns.map((column) => (
-                  <td key={column} title={valueOf(feature, column)}>
+                {header.map((column) => (
+                  <td
+                    key={column}
+                    className={column.startsWith('@') ? 'table__mono' : undefined}
+                    title={valueOf(feature, column)}
+                  >
                     {valueOf(feature, column)}
                   </td>
                 ))}
@@ -85,32 +134,4 @@ export function ResultTable({ collection }: { collection: FeatureCollection }) {
       ) : null}
     </>
   )
-}
-
-function valueOf(feature: Feature, key: string): string {
-  const value = feature.properties?.[key]
-  return value === undefined || value === null ? '' : String(value)
-}
-
-/** The most widely used tags in the result, `name` first when present. */
-function pickColumns(features: Feature[]): string[] {
-  const frequency = new Map<string, number>()
-
-  for (const feature of features) {
-    for (const key of Object.keys(feature.properties ?? {})) {
-      if (key.startsWith('@')) continue
-      frequency.set(key, (frequency.get(key) ?? 0) + 1)
-    }
-  }
-
-  const ranked = [...frequency.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([key]) => key)
-
-  // `name` is what people scan for, even when a technical tag is commoner.
-  const withName = ranked.includes('name')
-    ? ['name', ...ranked.filter((key) => key !== 'name')]
-    : ranked
-
-  return withName.slice(0, MAX_TAG_COLUMNS)
 }

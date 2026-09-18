@@ -180,6 +180,12 @@ export function importLibrary(text: string): { added: number; updated: number } 
     throw new LibraryError('That file is not valid JSON.')
   }
 
+  // `JSON.parse` happily returns null, a number or a string, so the shape has
+  // to be checked before any property is read.
+  if (!data || typeof data !== 'object') {
+    throw new LibraryError('That file is not an OverpassAI query library.')
+  }
+
   const file = data as Partial<LibraryFile>
   if (file.format !== LIBRARY_FORMAT || !Array.isArray(file.queries)) {
     throw new LibraryError('That file is not an OverpassAI query library.')

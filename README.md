@@ -54,6 +54,21 @@ Four layers, because they catch different things.
 | Syntax oracle | `npm run test:live` | Every corpus query compiled and sent to a real Overpass instance |
 | Types and lint | `npm run typecheck`, `npm run lint` | |
 
+Four of those files exist because of a specific class of failure rather than a
+specific function:
+
+- `robustness.test.ts` throws malformed queries, hostile links, corrupt saved
+  files and malformed server responses at everything. Nothing may take the page
+  down, because a blank screen is unrecoverable for the user.
+- `injection.test.ts` puts hostile content in OSM tag values and checks what
+  comes out of the exporters, which leave for spreadsheets and GIS tools that
+  do not have React's escaping.
+- `performance.test.ts` is a set of budgets, loose enough to survive a busy
+  machine and tight enough to fail when something turns quadratic.
+- `lines.test.ts` checks that the parser and the printer agree on which source
+  line each block sits on, since a disagreement sends a click to the wrong
+  place.
+
 `src/core/__tests__/corpus.ts` holds a corpus of real queries that three
 different checks run against: parse/print/reparse stability, compilation to
 valid Overpass QL, and the live oracle. **When a query is reported as broken,
@@ -143,7 +158,13 @@ and without a check the first thing you would hear about it is a parse error
 from a server in Germany, about a line in a query you never wrote. So the tree
 is validated before every send and continuously against the blocks: errors
 name the block and refuse the run, warnings (an unbounded query, an empty tag
-value) explain themselves and let it through.
+value) explain themselves and let it through. The result is computed once per
+change and kept in the query store; doing it inside each block looked harmless
+and meant walking the whole tree once per block on every render.
+
+Both halves also report which source line each block sits on, which is what
+lets the two views point at each other: a problem in the text names its block,
+and a block can reveal itself in the text.
 
 ## Services and keys
 
@@ -225,3 +246,31 @@ failure is invisible from the outside.
 The code is MIT. The data is OpenStreetMap's, under the
 [ODbL](https://opendatacommons.org/licenses/odbl/): attribute it, and share
 derived databases under the same terms. Exports carry the attribution.
+
+## Performance notes
+
+Three decisions carry most of it, and each is guarded by a test.
+
+**The query language is cheap.** Parsing, printing and validating a
+500-statement query costs a few milliseconds each, so the block editor can
+revalidate on every keystroke without any incremental invalidation machinery.
+The one thing that was not cheap was `lineCol`, which rescanned the source from
+the top on each call and made parsing quadratic in the number of statements; it
+now binary-searches a line index built once.
+
+**Validation runs once per change**, in the query store, rather than once per
+block at render time.
+
+**CodeMirror is loaded on demand.** It is 115 kB gzipped and the app opens on
+the block view, so most first loads never need it. It is fetched when the text
+tab is opened and prefetched on hover, which takes the first load from 531 kB
+to 414 kB gzipped.
+
+MapLibre is the remaining bulk at 279 kB gzipped and is not deferred: the map is
+the primary view. Leaflet would be a tenth of the size and would not hold up
+under the 50 000-point results these queries produce.
+
+Result conversion handles 50 000 nodes in about 20 ms, and a 2 000-fragment
+multipolygon boundary in about the same. The parser caps statement nesting at
+64 levels: recursive descent recurses once per level, and without a limit a
+pasted `((((((…` overflows the stack and takes the page with it.

@@ -9,6 +9,7 @@
 import type {
   BBox,
   Filter,
+  NodeId,
   OverpassQuery,
   Settings,
   Statement,
@@ -27,17 +28,88 @@ export const DISABLED_OPEN = '/*@off'
 export const DISABLED_CLOSE = '@off*/'
 
 export function print(query: OverpassQuery, options: PrintOptions = {}): string {
+  return printWithLines(query, options).text
+}
+
+export interface PrintedQuery {
+  text: string
+  /**
+   * The 1-based line each statement starts on.
+   *
+   * The same shape the parser returns, so whichever view last wrote the source
+   * can tell the other where a given block lives in it.
+   */
+  lines: Record<NodeId, number>
+}
+
+export function printWithLines(
+  query: OverpassQuery,
+  options: PrintOptions = {},
+): PrintedQuery {
   const indent = options.indent ?? DEFAULT_INDENT
-  const lines: string[] = []
+  const out: string[] = []
+  const lines: Record<NodeId, number> = {}
 
   const settings = printSettings(query.settings)
-  if (settings) lines.push(settings)
+  if (settings) out.push(settings)
 
-  for (const stmt of query.statements) {
-    lines.push(...printStatement(stmt, 0, indent))
+  for (const stmt of query.statements) emit(stmt, 0, indent, out, lines)
+
+  return { text: out.join('\n'), lines }
+}
+
+/**
+ * Appends a statement's lines to `out`, recording where it started.
+ *
+ * Push-based rather than returning arrays, because the line a statement lands
+ * on is only knowable once everything before it has been written.
+ */
+function emit(
+  stmt: Statement,
+  depth: number,
+  indent: number,
+  out: string[],
+  lines: Record<NodeId, number>,
+): void {
+  const rendered = printStatement(stmt, depth, indent)
+  // Point past any leading comment lines, at the statement itself.
+  const firstCode = rendered.findIndex((line) => !line.trimStart().startsWith('//'))
+  lines[stmt.id] = out.length + Math.max(0, firstCode) + 1
+  out.push(...rendered)
+
+  // Children are laid out inside the parent's own rendering, so their line
+  // numbers are derived from where the parent landed.
+  recordChildren(stmt, lines[stmt.id], depth, indent, lines)
+}
+
+/** Walks a container's children, assigning each the line it occupies. */
+function recordChildren(
+  stmt: Statement,
+  parentLine: number,
+  depth: number,
+  indent: number,
+  lines: Record<NodeId, number>,
+): void {
+  const children =
+    stmt.kind === 'union'
+      ? stmt.items
+      : stmt.kind === 'foreach'
+        ? stmt.body
+        : stmt.kind === 'difference'
+          ? [stmt.left, stmt.right].filter((s): s is Statement => s !== null)
+          : []
+
+  if (!children.length) return
+
+  // The opening bracket sits on the parent's line, so children start below it.
+  let cursor = parentLine + 1
+  for (const child of children) {
+    const rendered = printStatement(child, depth + 1, indent)
+    const firstCode = rendered.findIndex((line) => !line.trimStart().startsWith('//'))
+    lines[child.id] = cursor + Math.max(0, firstCode)
+    recordChildren(child, lines[child.id], depth + 1, indent, lines)
+    cursor += rendered.length
   }
-
-  return lines.join('\n')
 }
 
 // ---------------------------------------------------------------------------

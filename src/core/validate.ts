@@ -428,8 +428,16 @@ export function validate(query: OverpassQuery): ValidationResult {
     )
   }
 
-  /** True when some earlier statement leaves a result in the default set. */
+  /**
+   * True when some earlier statement leaves a result in the default set.
+   *
+   * Ancestors do not count. A traversal visits a union before the blocks inside
+   * it, so without this a `Near` filter in the first block of a union would see
+   * the union as its own input and pass, then fail on the server with "query
+   * has no valid input set".
+   */
   function hasPrecedingResult(stmt: Statement): boolean {
+    const ancestors = ancestorsOf(query.statements, stmt.id)
     let seen = false
     let found = false
 
@@ -438,11 +446,42 @@ export function validate(query: OverpassQuery): ValidationResult {
         seen = true
         return
       }
-      if (!seen && !candidate.disabled && producesElements(candidate)) found = true
+      if (seen || candidate.disabled) return
+      if (ancestors.has(candidate.id)) return
+      if (producesElements(candidate)) found = true
     })
 
     return found
   }
+}
+
+/** Ids of every container enclosing `target`. */
+function ancestorsOf(statements: Statement[], target: string): Set<string> {
+  const found = new Set<string>()
+
+  const walk = (list: Statement[], trail: string[]): boolean => {
+    for (const stmt of list) {
+      if (stmt.id === target) {
+        for (const id of trail) found.add(id)
+        return true
+      }
+
+      const children =
+        stmt.kind === 'union'
+          ? stmt.items
+          : stmt.kind === 'foreach'
+            ? stmt.body
+            : stmt.kind === 'difference'
+              ? [stmt.left, stmt.right].filter((s): s is Statement => s !== null)
+              : []
+
+      if (children.length && walk(children, [...trail, stmt.id])) return true
+    }
+    return false
+  }
+
+  walk(statements, [])
+  return found
 }
 
 function producesElements(stmt: Statement): boolean {

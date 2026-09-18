@@ -23,7 +23,7 @@ import type {
 import { cloneWithNewIds, makeFilter, makeStatement } from '../../core/factory'
 import { definedSets, detach, findStatement, insertAt, locate } from '../../core/mutate'
 import { summarize } from '../../core/printer'
-import { issuesFor, validate, worstSeverity, type ValidationIssue } from '../../core/validate'
+import { issuesFor, worstSeverity, type ValidationIssue } from '../../core/validate'
 import { search as searchPlaces, type Place } from '../../services/nominatim'
 import { useQueryStore } from '../../store/useQueryStore'
 import { useUiStore } from '../../store/useUiStore'
@@ -99,6 +99,8 @@ export function StatementBlock({ statement, parentId, draggable = true }: Statem
 
   const selected = useUiStore((state) => state.selectedBlockId) === statement.id
   const selectBlock = useUiStore((state) => state.selectBlock)
+  const revealInText = useUiStore((state) => state.revealInText)
+  const line = useQueryStore((state) => state.lines[statement.id])
   const element = useRef<HTMLDivElement>(null)
 
   // Clicking an issue in the results panel brings the block into view, which
@@ -183,6 +185,16 @@ export function StatementBlock({ statement, parentId, draggable = true }: Statem
                   }}
                 >
                   Duplicate
+                </MenuItem>
+                <MenuItem
+                  icon={<Icon name="code" size={13} />}
+                  disabled={!line}
+                  onClick={() => {
+                    if (line) revealInText(line)
+                    close()
+                  }}
+                >
+                  Show in the text
                 </MenuItem>
                 <MenuItem
                   icon={<Icon name="pin" size={13} />}
@@ -806,15 +818,21 @@ function withSensibleDefaults(filter: Filter, sets: string[]): Filter {
 /**
  * Validation issues for one block.
  *
- * The whole query is validated on every change, which sounds wasteful and is
- * not: queries are a handful of statements, and the alternative is incremental
- * invalidation logic that would be wrong in some corner.
+ * Reads the result the store already computed. Validating here instead walked
+ * the whole tree once per block, so a query with fifty blocks did fifty full
+ * passes for every keystroke.
  */
 function useIssues(statementId: string): ValidationIssue[] {
-  const ast = useQueryStore((state) => state.ast)
-  return useMemo(() => issuesFor(validate(ast), statementId), [ast, statementId])
+  const validation = useQueryStore((state) => state.validation)
+  return useMemo(() => issuesFor(validation, statementId), [validation, statementId])
 }
 
+/**
+ * Set names the query defines.
+ *
+ * Memoised on the tree's identity, which `updateAst` replaces on every change,
+ * so every block in one render shares a single walk.
+ */
 function useSets(): string[] {
   const ast = useQueryStore((state) => state.ast)
   return useMemo(() => definedSets(ast), [ast])

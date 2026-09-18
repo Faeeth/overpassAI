@@ -73,9 +73,12 @@ export function Combobox<T>({
     if (!open) return
 
     const id = ++requestId.current
-    setLoading(true)
 
     const timer = window.setTimeout(() => {
+      // Set inside the debounce rather than beside it: during the wait no
+      // request is in flight, so saying "looking up suggestions" would be
+      // both an extra render and untrue.
+      setLoading(true)
       load(query)
         .then((result) => {
           if (requestId.current !== id) return

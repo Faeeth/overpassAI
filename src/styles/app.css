@@ -155,6 +155,12 @@
   min-height: 0;
 }
 
+.panel__loading {
+  padding: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--fg-faint);
+}
+
 /* Drag handle between the panel and the map. */
 .resizer {
   position: absolute;
@@ -870,6 +876,11 @@
   padding-top: 1px;
 }
 
+/* A warning reads but will not do what was meant; an error will not run. */
+.editor__error--warning .editor__error-pos {
+  color: var(--warning);
+}
+
 /* ===================================================================== */
 /* Map                                                                    */
 /* ===================================================================== */
@@ -1144,9 +1155,35 @@
   font-size: var(--text-xs);
   color: var(--fg-muted);
   background: var(--bg-panel);
-  padding: var(--space-2) var(--space-3);
+  padding: 0;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+}
+
+.table__sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.table__sort:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+.table th[aria-sort='ascending'] .table__sort,
+.table th[aria-sort='descending'] .table__sort {
+  color: var(--accent);
+}
+
+.table tbody tr:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .table td {
@@ -1556,6 +1593,67 @@ dialog.dialog-native::backdrop {
 /* The panel toggle is only meaningful once the panel becomes an overlay. */
 [data-narrow-only='true'] {
   display: none;
+}
+
+/* ===================================================================== */
+/* Crash screen                                                           */
+/* ===================================================================== */
+
+.crash {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--space-4);
+  background: var(--bg-app);
+}
+
+.crash__card {
+  width: min(36rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-block);
+}
+
+.crash__card h1 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.crash__card p {
+  color: var(--fg-muted);
+  line-height: 1.6;
+}
+
+.crash__detail {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg-sunken);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--danger);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.crash__stack summary {
+  font-size: var(--text-sm);
+  color: var(--fg-faint);
+  cursor: pointer;
+}
+
+.crash__stack pre {
+  margin: var(--space-2) 0 0;
+  max-height: 14rem;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
 }
 
 /* ===================================================================== */

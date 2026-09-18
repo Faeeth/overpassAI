@@ -10,9 +10,10 @@
 
 import { create } from 'zustand'
 
-import type { OverpassQuery, Statement } from '../core/ast'
+import type { NodeId, OverpassQuery, Statement } from '../core/ast'
 import { parse, type ParseError } from '../core/parser'
-import { print } from '../core/printer'
+import { printWithLines } from '../core/printer'
+import { validate, type ValidationResult } from '../core/validate'
 
 export const STARTER_QUERY = `[out:json][timeout:25];
 // Search inside a named place
@@ -35,6 +36,22 @@ interface QueryState {
   revision: number
   /** Name used for saving and for export file names. */
   name: string
+  /**
+   * Problems with the current tree.
+   *
+   * Derived state, computed once per change rather than per component.
+   * Validating inside each block looked harmless and meant walking the whole
+   * tree once per block on every render.
+   */
+  validation: ValidationResult
+  /**
+   * The source line each block sits on.
+   *
+   * Written by whichever side last produced the text, so the views can point
+   * at each other: a problem in the text names its block, and a block can
+   * reveal itself in the text.
+   */
+  lines: Record<NodeId, number>
 
   setSource: (source: string) => void
   updateAst: (recipe: (draft: OverpassQuery) => void) => void
@@ -45,9 +62,12 @@ interface QueryState {
   reset: () => void
 }
 
-function fromSource(source: string): Pick<QueryState, 'source' | 'ast' | 'parseErrors'> {
-  const { query, errors } = parse(source)
-  return { source, ast: query, parseErrors: errors }
+function fromSource(source: string): Pick<
+  QueryState,
+  'source' | 'ast' | 'parseErrors' | 'validation' | 'lines'
+> {
+  const { query, errors, lines } = parse(source)
+  return { source, ast: query, parseErrors: errors, validation: validate(query), lines }
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -67,7 +87,15 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     // cheaper than the machinery to avoid it.
     const draft = structuredClone(get().ast)
     recipe(draft)
-    set({ ast: draft, source: print(draft), parseErrors: [], origin: 'blocks' })
+    const printed = printWithLines(draft)
+    set({
+      ast: draft,
+      source: printed.text,
+      lines: printed.lines,
+      parseErrors: [],
+      validation: validate(draft),
+      origin: 'blocks',
+    })
   },
 
   setStatements: (statements) => {
@@ -80,11 +108,17 @@ export const useQueryStore = create<QueryState>((set, get) => ({
 
   load: (source, options = {}) => {
     const parsed = fromSource(source)
+    // A project file carries its tree, which preserves labels and muted
+    // blocks exactly as they were saved.
+    const ast = options.ast ?? parsed.ast
+    // A stored tree has ids of its own, so the lines have to come from
+    // printing it rather than from parsing the text beside it.
+    const printed = options.ast ? printWithLines(ast) : null
     set({
       ...parsed,
-      // A project file carries its tree, which preserves labels and muted
-      // blocks exactly as they were saved.
-      ast: options.ast ?? parsed.ast,
+      ast,
+      lines: printed?.lines ?? parsed.lines,
+      validation: validate(ast),
       name: options.name ?? get().name,
       origin: 'external',
       revision: get().revision + 1,

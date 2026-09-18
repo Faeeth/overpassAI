@@ -21,12 +21,13 @@ import { viewForBounds, boundsOf } from '../store/useResultStore'
 
 /** Runs the query currently in the editor. */
 export function runCurrentQuery(): void {
-  const { ast } = useQueryStore.getState()
+  const { ast, validation } = useQueryStore.getState()
   const { endpointUrl } = useUiStore.getState()
 
   void useResultStore.getState().run(ast, {
     endpoint: endpointUrl,
     viewport: currentViewportBBox(),
+    validation,
   })
 }
 

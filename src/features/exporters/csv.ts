@@ -48,13 +48,37 @@ export function toCsv(collection: FeatureCollection, separator = ','): string {
   return rows.join('\r\n')
 }
 
-/** Quotes a cell when it contains a separator, a quote or a newline. */
+/**
+ * Leading characters a spreadsheet reads as the start of a formula.
+ *
+ * `-` is deliberately absent. Excel does treat `-1+1` as a formula, but
+ * negative numbers are everywhere in OSM data (`ele=-5`, `layer=-1`), and
+ * mangling every one of those to defuse a case that does not occur in practice
+ * would be the worse trade.
+ */
+const FORMULA_STARTERS = new Set(['=', '+', '@', '\t', '\r'])
+
+/**
+ * Quotes a cell when it contains a separator, a quote or a newline, and
+ * defuses anything a spreadsheet would run as a formula.
+ *
+ * Tag values are written by strangers, and a CSV export is opened in Excel or
+ * Sheets more often than anywhere else. A value of `=HYPERLINK(...)` is a
+ * working attack there, so it gets a leading apostrophe: the standard
+ * mitigation, visible in the cell, and understood by importers.
+ */
 function escapeCell(value: string, separator: string): string {
   if (!value) return ''
-  if (value.includes(separator) || /["\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`
+
+  // Our own column names start with `@` and are not user content, so they are
+  // left as they are; anything else that looks like a formula is defused.
+  const ours = (FIXED_COLUMNS as readonly string[]).includes(value)
+  const safe = !ours && FORMULA_STARTERS.has(value[0]) ? `'${value}` : value
+
+  if (safe.includes(separator) || /["\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`
   }
-  return value
+  return safe
 }
 
 /**

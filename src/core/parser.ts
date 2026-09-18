@@ -17,6 +17,7 @@ import {
   defaultSettings,
   type CsvConfig,
   type Filter,
+  type NodeId,
   type OutStatement,
   type OverpassQuery,
   type QueryType,
@@ -40,6 +41,14 @@ export interface ParseError {
 export interface ParseResult {
   query: OverpassQuery
   errors: ParseError[]
+  /**
+   * The 1-based source line each statement starts on.
+   *
+   * Lets the text view point at the block a validation issue belongs to, and
+   * lets a block reveal itself in the text. Kept out of the AST so that two
+   * structurally identical queries still compare equal whatever their layout.
+   */
+  lines: Record<NodeId, number>
 }
 
 /** Thrown internally to unwind to the nearest `attempt()`. Never escapes `parse`. */
@@ -47,6 +56,17 @@ class ParseFail extends Error {}
 
 /** Transient marker for the right operand of a difference, stripped before returning. */
 const MINUS = Symbol('minus')
+
+/**
+ * How deeply statements may nest before the rest is kept as raw text.
+ *
+ * A recursive descent parser recurses once per nesting level, so without a
+ * limit a pasted `((((((...` overflows the stack and takes the page down with
+ * it. Real queries nest two or three deep; unions inside differences inside a
+ * foreach reach maybe six. Sixty-four is far past anything anyone writes and
+ * far short of the stack.
+ */
+const MAX_NESTING = 64
 
 const QUERY_TYPES: Record<string, QueryType> = {
   node: 'node',
@@ -132,16 +152,33 @@ class Scanner {
     }
   }
 
+  /**
+   * Offsets at which each line starts, built once.
+   *
+   * Scanning from the top on every lookup was O(n) per call and the parser
+   * calls it once per statement, which made parsing a long query quadratic:
+   * two thousand statements took seconds.
+   */
+  private lineStarts: number[] | null = null
+
   lineCol(offset: number): { line: number; column: number } {
-    let line = 1
-    let lineStart = 0
-    for (let i = 0; i < offset && i < this.src.length; i++) {
-      if (this.src[i] === '\n') {
-        line += 1
-        lineStart = i + 1
+    if (!this.lineStarts) {
+      this.lineStarts = [0]
+      for (let i = 0; i < this.src.length; i++) {
+        if (this.src[i] === '\n') this.lineStarts.push(i + 1)
       }
     }
-    return { line, column: offset - lineStart + 1 }
+
+    // Binary search for the last line that starts at or before `offset`.
+    let low = 0
+    let high = this.lineStarts.length - 1
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2)
+      if (this.lineStarts[mid] <= offset) low = mid
+      else high = mid - 1
+    }
+
+    return { line: low + 1, column: offset - this.lineStarts[low] + 1 }
   }
 }
 
@@ -152,6 +189,8 @@ class Scanner {
 export function parse(src: string): ParseResult {
   const sc = new Scanner(src)
   const errors: ParseError[] = []
+  const lines: Record<NodeId, number> = {}
+  let depth = 0
 
   const fail = (message: string, offset = sc.pos): never => {
     throw new ParseFail(`${message}@${offset}`)
@@ -485,10 +524,17 @@ export function parse(src: string): ParseResult {
   }
 
   function parseStatement(): Statement {
+    sc.skipTrivia()
+    const start = sc.pos
+
     const typed = attempt(parseTypedStatement)
-    if (typed) return typed
-    // Unmodelled but well-delimited syntax is kept verbatim rather than lost.
-    return { kind: 'raw', id: newId(), text: readToSemicolon().trim() }
+    const stmt =
+      typed ??
+      // Unmodelled but well-delimited syntax is kept verbatim rather than lost.
+      ({ kind: 'raw', id: newId(), text: readToSemicolon().trim() } as Statement)
+
+    lines[stmt.id] = sc.lineCol(start).line
+    return stmt
   }
 
   function parseTypedStatement(): Statement {
@@ -598,6 +644,16 @@ export function parse(src: string): ParseResult {
    * printer silently corrects the query rather than leaving it broken.
    */
   function finishForeach(prefixed: string | undefined): Statement {
+    if (depth >= MAX_NESTING) fail('statements are nested too deeply')
+    depth += 1
+    try {
+      return finishForeachBody(prefixed)
+    } finally {
+      depth -= 1
+    }
+  }
+
+  function finishForeachBody(prefixed: string | undefined): Statement {
     let from = prefixed
     if (sc.peek() === '.') {
       sc.advance()
@@ -630,6 +686,16 @@ export function parse(src: string): ParseResult {
 
   /** `( a; b; )` or `( a; - b; )`. */
   function parseGroup(): Statement {
+    if (depth >= MAX_NESTING) fail('statements are nested too deeply')
+    depth += 1
+    try {
+      return parseGroupBody()
+    } finally {
+      depth -= 1
+    }
+  }
+
+  function parseGroupBody(): Statement {
     sc.advance() // '('
     const items = parseStatements(')')
     expect(')')
@@ -921,7 +987,7 @@ export function parse(src: string): ParseResult {
   }
 
   const statements = parseStatements(null, lead)
-  return { query: { settings, statements }, errors }
+  return { query: { settings, statements }, errors, lines }
 }
 
 // ---------------------------------------------------------------------------

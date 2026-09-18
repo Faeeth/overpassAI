@@ -33,6 +33,8 @@ interface UiState {
   selectedFeatureId: string | null
   /** Block to scroll to and highlight, set when an issue is clicked. */
   selectedBlockId: string | null
+  /** Line the text view should scroll to, set when a block asks to be shown. */
+  revealLine: number | null
   /** Whether new users see the welcome panel. */
   onboardingDismissed: boolean
 
@@ -47,6 +49,8 @@ interface UiState {
   setView: (view: MapView) => void
   selectFeature: (id: string | null) => void
   selectBlock: (id: string | null) => void
+  /** Switches to the text view and scrolls to a line. */
+  revealInText: (line: number | null) => void
   dismissOnboarding: () => void
 }
 
@@ -121,6 +125,7 @@ export const useUiStore = create<UiState>()(
       view: DEFAULT_VIEW,
       selectedFeatureId: null,
       selectedBlockId: null,
+      revealLine: null,
       onboardingDismissed: false,
 
       setTheme: (theme) => set({ theme }),
@@ -134,6 +139,8 @@ export const useUiStore = create<UiState>()(
       setView: (view) => set({ view }),
       selectFeature: (selectedFeatureId) => set({ selectedFeatureId }),
       selectBlock: (selectedBlockId) => set({ selectedBlockId }),
+      revealInText: (revealLine) =>
+        set(revealLine === null ? { revealLine: null } : { revealLine, editorMode: 'text' }),
       dismissOnboarding: () => set({ onboardingDismissed: true }),
     }),
     {
